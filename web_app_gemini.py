@@ -68,11 +68,18 @@ DB_CONFIG = {
 
 # Initialize database
 def init_database():
-    """Tạo bảng search_history nếu chưa tồn tại"""
+    """Tạo bảng search_history nếu chưa tồn tại.
+
+    LƯU Ý:
+    - Trên môi trường như Railway, nếu không có MySQL (localhost:3306),
+      hàm này phải FAIL GRACEFULLY, KHÔNG được làm app crash.
+    """
+    conn = None
+    cursor = None
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor()
-        
+
         # Create table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS search_history (
@@ -86,16 +93,23 @@ def init_database():
                 INDEX idx_disease (disease)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """)
-        
+
         conn.commit()
         print("✓ Database table 'search_history' initialized successfully")
-        
+
     except Error as e:
+        # Không làm app dừng – chỉ log lỗi, app vẫn chạy bình thường
         print(f"✗ Database error: {e}")
+        print("⚠ Database features (search history) will be disabled on this environment.")
     finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
+        try:
+            if conn is not None and hasattr(conn, "is_connected") and conn.is_connected():
+                if cursor is not None:
+                    cursor.close()
+                conn.close()
+        except Exception:
+            # Tuyệt đối không cho lỗi ở đây làm app crash
+            pass
 
 def get_db_connection():
     """Tạo kết nối database"""
