@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Chatbot - Tư Vấn Y Tế</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .predictions {
+            margin-top: 15px;
+        }
+
+        .prediction-item {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .prediction-item:first-child {
+            background: #e8f0fe;
+            border-left-color: #4285f4;
+            font-weight: 600;
+        }
+
+        .disease-name {
+            flex: 1;
+            font-size: 15px;
+            color: #333;
+        }
+
+        .confidence {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        #questionInput {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        #questionInput:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        #sendButton {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #sendButton:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #sendButton:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .disclaimer {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+
+        .disclaimer strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 15px 20px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #999;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.7;
+            }
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+        }
+
+        /* Scrollbar styling */
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Medical Chatbot</h1>
+            <p>Tư vấn sơ bộ về triệu chứng y tế</p>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message bot">
+                <div class="message-content">
+                    <p>Xin chào! Tôi là Medical Chatbot, có thể giúp bạn tư vấn sơ bộ về các triệu chứng y tế.</p>
+                    <div class="disclaimer">
+                        <strong>⚠️ Lưu ý quan trọng:</strong>
+                        Đây chỉ là công cụ hỗ trợ tư vấn sơ bộ. Kết quả không thay thế cho chẩn đoán của bác sĩ. 
+                        Vui lòng tham khảo ý kiến bác sĩ chuyên khoa để có chẩn đoán chính xác.
+                    </div>
+                    <p style="margin-top: 10px;">Hãy mô tả các triệu chứng bạn đang gặp phải...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="questionInput" 
+                    placeholder="Nhập triệu chứng của bạn (ví dụ: Tôi đang cảm thấy mệt mỏi, chóng mặt...)"
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button id="sendButton" onclick="sendMessage()">Gửi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/chat';
+        const chatContainer = document.getElementById('chatContainer');
+        const questionInput = document.getElementById('questionInput');
+        const sendButton = document.getElementById('sendButton');
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addMessage(content, isUser = false, predictions = null, warnings = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            
+            let html = `<div class="message-content">`;
+            
+            if (typeof content === 'string') {
+                html += `<p>${content}</p>`;
+            } else {
+                html += content;
+            }
+            
+            if (predictions && predictions.length > 0) {
+                html += `<div class="predictions">`;
+                predictions.forEach((pred, index) => {
+                    html += `
+                        <div class="prediction-item">
+                            <span class="disease-name">${index + 1}. ${pred.disease}</span>
+                            <span class="confidence">${pred.confidence_percent.toFixed(2)}%</span>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            if (warnings) {
+                warnings.forEach(warning => {
+                    html += `<div class="warning">⚠️ ${warning}</div>`;
+                });
+            }
+            
+            html += `</div>`;
+            messageDiv.innerHTML = html;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addTypingIndicator() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.id = 'typingIndicator';
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        async function sendMessage() {
+            const question = questionInput.value.trim();
+            
+            if (!question) {
+                return;
+            }
+            
+            // Add user message
+            addMessage(question, true);
+            questionInput.value = '';
+            
+            // Disable input
+            questionInput.disabled = true;
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<span class="loading"></span>';
+            
+            // Add typing indicator
+            addTypingIndicator();
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        top_k: 5
+                    })
+                });
+                
+                const data = await response.json();
+                removeTypingIndicator();
+                
+                if (data.success) {
+                    const result = data.data;
+                    const warnings = [];
+                    
+                    // Luôn hiển thị predictions (dù confidence thấp)
+                    if (result.predictions && result.predictions.length > 0) {
+                        let responseText = 'Dựa trên các triệu chứng bạn mô tả, bạn có thể đang mắc:';
+                        
+                        // Kiểm tra nếu model chưa train đủ (tất cả confidence gần bằng nhau và < 1%)
+                        const confidences = result.predictions.map(p => p.confidence_percent);
+                        const maxConf = Math.max(...confidences);
+                        const minConf = Math.min(...confidences);
+                        const isModelNotTrained = maxConf < 1.0 && (maxConf - minConf) < 0.5;
+                        
+                        if (isModelNotTrained || result.is_out_of_domain) {
+                            warnings.push('⚠️ <strong>Model chưa được train đủ</strong> - Kết quả này không đáng tin cậy. Vui lòng train thêm model hoặc tham khảo ý kiến bác sĩ.');
+                        } else if (!result.is_confident) {
+                            warnings.push('⚠️ Độ tin cậy thấp. Kết quả chỉ mang tính tham khảo. Vui lòng mô tả chi tiết hơn về các triệu chứng.');
+                        }
+                        
+                        addMessage(responseText, false, result.predictions.slice(0, 5), warnings.length > 0 ? warnings : null);
+                    } else {
+                        // Trường hợp không có predictions (hiếm khi xảy ra)
+                        addMessage(
+                            '<div class="error"><strong>⚠️ Không thể dự đoán</strong><br>Model không thể xử lý câu hỏi này. Vui lòng thử lại với câu hỏi khác.</div>',
+                            false
+                        );
+                    }
+                    
+                    // Add disclaimer
+                    setTimeout(() => {
+                        addMessage(
+                            '<div class="disclaimer"><strong>⚠️ Lưu ý:</strong> Đây chỉ là dự đoán sơ bộ. Vui lòng tham khảo ý kiến bác sĩ để có chẩn đoán chính xác.</div>',
+                            false
+                        );
+                    }, 500);
+                } else {
+                    addMessage(`<div class="error">❌ ${data.error}</div>`, false);
+                }
+            } catch (error) {
+                removeTypingIndicator();
+                addMessage(`<div class="error">❌ Lỗi kết nối: ${error.message}</div>`, false);
+            } finally {
+                // Enable input
+                questionInput.disabled = false;
+                sendButton.disabled = false;
+                sendButton.innerHTML = 'Gửi';
+                questionInput.focus();
+            }
+        }
+
+        // Focus input on load
+        window.onload = () => {
+            questionInput.focus();
+        };
+    </script>
+</body>
+</html>
+

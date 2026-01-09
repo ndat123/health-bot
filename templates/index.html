@@ -1,0 +1,2201 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏥 AI Disease Diagnosis - Groq Powered | Chẩn Đoán Bệnh Thông Minh</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* Floating particles effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .container {
+            max-width: 950px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            box-shadow: 0 30px 90px rgba(0,0,0,0.3), 
+                        0 0 0 1px rgba(255,255,255,0.3);
+            overflow: hidden;
+            animation: fadeIn 0.8s ease-out;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            padding: 50px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .header h1 {
+            font-size: 2.8em;
+            margin-bottom: 15px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+            font-weight: 400;
+        }
+        
+        .header-actions {
+            padding: 20px 30px;
+            background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .ai-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .ai-selector label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95em;
+        }
+        
+        .ai-dropdown {
+            padding: 8px 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+        
+        .ai-dropdown:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .ai-dropdown option {
+            background: white;
+            color: #333;
+        }
+        
+        .history-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .history-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* History Modal */
+        .history-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .history-modal-content {
+            position: relative;
+            background: white;
+            margin: 50px auto;
+            max-width: 800px;
+            max-height: 80vh;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .history-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-header h2 {
+            margin: 0;
+            font-size: 1.5em;
+            font-weight: 700;
+        }
+        
+        .close-history {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .close-history:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+        
+        .history-body {
+            padding: 30px;
+            max-height: calc(80vh - 90px);
+            overflow-y: auto;
+        }
+        
+        .history-item {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .history-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .history-item-date {
+            color: #6c757d;
+            font-size: 0.85em;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .history-item-symptoms {
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .history-item-disease {
+            color: #667eea;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+        
+        .history-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .history-action-btn {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .view-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .history-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .no-history {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .no-history-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+        
+        .clear-all-history {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .clear-all-history:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+        
+        .content {
+            padding: 50px 40px;
+        }
+        
+        .input-section {
+            margin-bottom: 35px;
+        }
+        
+        label {
+            display: block;
+            font-size: 1.3em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #2d3748;
+            letter-spacing: -0.5px;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 15px;
+            font-size: 1.05em;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 140px;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1),
+                        0 4px 20px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .examples {
+            margin-top: 15px;
+            font-size: 0.95em;
+            color: #718096;
+        }
+        
+        .example-btn {
+            display: inline-block;
+            padding: 10px 18px;
+            margin: 8px 8px 8px 0;
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #4a5568;
+        }
+        
+        .example-btn:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 18px 35px;
+            font-size: 1.15em;
+            font-weight: 700;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        button:active {
+            transform: translateY(-1px);
+        }
+        
+        .predict-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: relative;
+        }
+        
+        .predict-btn:hover {
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .clear-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+        }
+        
+        .clear-btn:hover {
+            box-shadow: 0 8px 25px rgba(108, 117, 125, 0.3);
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 50px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .spinner {
+            border: 5px solid rgba(102, 126, 234, 0.1);
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading p {
+            font-size: 1.1em;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        
+        .result {
+            display: none;
+            margin-top: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .result h2 {
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-size: 2em;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        
+        .analysis {
+            padding: 25px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-left: 5px solid #667eea;
+            margin-bottom: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+            font-size: 1.05em;
+            line-height: 1.7;
+            color: #2d3748;
+        }
+        
+        .analysis strong {
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        .predictions {
+            margin-bottom: 30px;
+        }
+        
+        .predictions h3 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            font-weight: 700;
+        }
+        
+        .prediction-item {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 18px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+        }
+        
+        .prediction-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+        
+        .disease-name {
+            font-size: 1.8em;
+            font-weight: 800;
+            color: #667eea;
+            margin-bottom: 15px;
+            letter-spacing: -0.5px;
+            padding: 15px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
+        }
+        
+        .probability {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .prob-bar {
+            flex: 1;
+            height: 35px;
+            background: linear-gradient(90deg, #f7fafc, #edf2f7);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-right: 15px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .prob-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.05em;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .reason {
+            color: #718096;
+            font-size: 1em;
+            line-height: 1.6;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 3px solid #cbd5e0;
+        }
+        
+        .reason strong {
+            color: #4a5568;
+            font-weight: 600;
+        }
+        
+        .disease-detail {
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .disease-detail h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.15em;
+            font-weight: 700;
+        }
+        
+        .disease-detail ul {
+            margin-left: 20px;
+            color: #4a5568;
+        }
+        
+        .disease-detail li {
+            margin-bottom: 10px;
+            line-height: 1.7;
+            padding-left: 5px;
+        }
+        
+        .disease-detail small {
+            display: block;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .detail-section {
+            margin-bottom: 25px;
+        }
+        
+        .detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-section h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .detail-section ul {
+            margin-left: 20px;
+            color: #4a5568;
+        }
+        
+        .detail-section li {
+            margin-bottom: 12px;
+            line-height: 1.7;
+        }
+        
+        .toggle-detail-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .toggle-detail-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .disease-info-box {
+            margin-top: 30px;
+            padding: 35px;
+            background: linear-gradient(135deg, #667eea10 0%, #764ba220 50%, #f093fb15 100%);
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        
+        .disease-info-box h3 {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 1.7em;
+            font-weight: 800;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+            letter-spacing: -0.5px;
+        }
+        
+        .recommendations {
+            background: linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%);
+            border-left: 5px solid #ff9800;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(255, 152, 0, 0.15);
+        }
+        
+        .recommendations h3 {
+            color: #e65100;
+            margin-bottom: 18px;
+            font-size: 1.3em;
+            font-weight: 700;
+        }
+        
+        .recommendations ul {
+            list-style-position: inside;
+            color: #ef6c00;
+        }
+        
+        .recommendations li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        
+        .warning {
+            background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+            border-left: 5px solid #e91e63;
+            padding: 25px;
+            border-radius: 15px;
+            color: #c2185b;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.15);
+            font-size: 1.05em;
+            line-height: 1.6;
+        }
+        
+        .error {
+            background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+            color: #c62828;
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 25px;
+            display: none;
+            border-left: 5px solid #d32f2f;
+            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.15);
+            font-weight: 600;
+        }
+        
+        .footer {
+            background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+            padding: 30px 20px;
+            text-align: center;
+            color: #6c757d;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .footer p {
+            margin: 8px 0;
+            font-size: 0.95em;
+        }
+        
+        .footer p:first-child {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        /* ============================================
+           CHAT INTERFACE (Gemini Mode)
+           ============================================ */
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 380px);
+            min-height: 550px;
+            max-height: 750px;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15),
+                        0 8px 25px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px 30px;
+            background: linear-gradient(to bottom, 
+                #f8f9fa 0%, 
+                #ffffff 20%,
+                #ffffff 80%,
+                #f8f9fa 100%);
+            scroll-behavior: smooth;
+            position: relative;
+        }
+        
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 10px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #764ba2, #667eea);
+        }
+        
+        .chat-welcome {
+            text-align: center;
+            padding: 50px 30px;
+            color: #6c757d;
+            background: linear-gradient(135deg, 
+                rgba(102, 126, 234, 0.05) 0%, 
+                rgba(118, 75, 162, 0.05) 100%);
+            border-radius: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .welcome-icon {
+            font-size: 4.5em;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 4px 12px rgba(102, 126, 234, 0.2));
+        }
+        
+        @keyframes float {
+            0%, 100% { 
+                transform: translateY(0) scale(1);
+            }
+            50% { 
+                transform: translateY(-8px) scale(1.05);
+            }
+        }
+        
+        .chat-welcome h3 {
+            font-size: 2em;
+            color: #2d3748;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+        
+        .chat-welcome p {
+            font-size: 1.05em;
+            line-height: 1.7;
+            max-width: 520px;
+            margin: 0 auto 8px;
+            color: #4a5568;
+        }
+        
+        .chat-welcome p:last-child {
+            font-size: 0.9em;
+            opacity: 0.7;
+            color: #667eea;
+            font-weight: 500;
+            margin-top: 12px;
+        }
+        
+        .chat-message {
+            margin-bottom: 16px;
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+        
+        .chat-message.bot {
+            justify-content: flex-start;
+        }
+        
+        .chat-bubble {
+            max-width: 75%;
+            padding: 16px 20px;
+            border-radius: 20px;
+            font-size: 0.98em;
+            line-height: 1.7;
+            word-wrap: break-word;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .chat-message.user .chat-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3),
+                        0 2px 8px rgba(118, 75, 162, 0.2);
+        }
+        
+        .chat-message.bot .chat-bubble {
+            background: #ffffff;
+            color: #2d3748;
+            border: 1.5px solid rgba(102, 126, 234, 0.12);
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        
+        .chat-bubble p {
+            margin: 0 0 10px 0;
+        }
+        
+        .chat-bubble p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .chat-bubble strong {
+            color: #667eea;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.05em;
+        }
+        
+        .chat-message.user .chat-bubble strong {
+            color: rgba(255, 255, 255, 0.95);
+        }
+        
+        .chat-message.bot .chat-bubble strong {
+            color: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .chat-typing {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 16px 20px;
+            background: #ffffff;
+            border-radius: 20px;
+            border-bottom-left-radius: 6px;
+            border: 1.5px solid rgba(102, 126, 234, 0.12);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+        
+        .typing-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            animation: typingAnimation 1.4s ease-in-out infinite;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% {
+                transform: translateY(0) scale(1);
+                opacity: 0.6;
+            }
+            30% {
+                transform: translateY(-8px) scale(1.1);
+                opacity: 1;
+            }
+        }
+        
+        .chat-input-container {
+            padding: 22px 26px;
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.98) 0%, 
+                rgba(248, 249, 250, 0.95) 100%);
+            border-top: 1px solid rgba(102, 126, 234, 0.15);
+            display: flex;
+            gap: 14px;
+            align-items: flex-end;
+            box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.08),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+        
+        .chat-input-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(102, 126, 234, 0.3) 50%, 
+                transparent 100%);
+        }
+        
+        #chatInput {
+            flex: 1;
+            padding: 16px 20px;
+            border: 2.5px solid rgba(102, 126, 234, 0.25);
+            border-radius: 18px;
+            font-size: 1em;
+            font-family: 'Inter', sans-serif;
+            resize: none;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            max-height: 130px;
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.95) 0%, 
+                rgba(248, 249, 250, 0.9) 100%);
+            color: #2d3748;
+            line-height: 1.6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06),
+                        inset 0 1px 2px rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+        
+        #chatInput::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+        }
+        
+        #chatInput:hover {
+            border-color: rgba(102, 126, 234, 0.35);
+            box-shadow: 0 6px 18px rgba(102, 126, 234, 0.12),
+                        inset 0 1px 2px rgba(255, 255, 255, 0.9);
+        }
+        
+        #chatInput:focus {
+            border-color: #667eea;
+            background: #ffffff;
+            box-shadow: 0 0 0 5px rgba(102, 126, 234, 0.12),
+                        0 8px 24px rgba(102, 126, 234, 0.2),
+                        inset 0 1px 2px rgba(255, 255, 255, 1);
+            transform: translateY(-2px);
+        }
+        
+        .chat-send-btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, 
+                #667eea 0%, 
+                #764ba2 50%,
+                #667eea 100%);
+            background-size: 200% 200%;
+            color: white;
+            border: none;
+            border-radius: 18px;
+            font-size: 1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4),
+                        0 4px 12px rgba(118, 75, 162, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+            min-width: 120px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .chat-send-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.4), 
+                transparent);
+            transition: left 0.6s ease;
+        }
+        
+        .chat-send-btn:hover::before {
+            left: 100%;
+        }
+        
+        .chat-send-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+        
+        .chat-send-btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .chat-send-btn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5),
+                        0 6px 16px rgba(118, 75, 162, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            background-position: 100% 0;
+        }
+        
+        .chat-send-btn:active {
+            transform: translateY(-1px) scale(0.98);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3),
+                        inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-send-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+            background: linear-gradient(135deg, 
+                rgba(102, 126, 234, 0.6) 0%, 
+                rgba(118, 75, 162, 0.6) 100%);
+        }
+        
+        .chat-send-btn:disabled::before,
+        .chat-send-btn:disabled::after {
+            display: none;
+        }
+        
+        .send-icon {
+            font-size: 1.25em;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+            transition: transform 0.3s ease;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .chat-send-btn:hover .send-icon {
+            transform: translateX(2px) scale(1.1);
+        }
+        
+        .chat-send-btn span:not(.send-icon) {
+            position: relative;
+            z-index: 1;
+            letter-spacing: 0.3px;
+        }
+        
+        .chat-examples {
+            padding: 18px 24px;
+            background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+            border-top: 1px solid rgba(102, 126, 234, 0.08);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .chat-example-btn {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, 
+                rgba(102, 126, 234, 0.1) 0%, 
+                rgba(118, 75, 162, 0.08) 100%);
+            color: #667eea;
+            border: 1.5px solid rgba(102, 126, 234, 0.25);
+            border-radius: 22px;
+            font-size: 0.92em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+        
+        .chat-example-btn:hover {
+            background: linear-gradient(135deg, 
+                rgba(102, 126, 234, 0.2) 0%, 
+                rgba(118, 75, 162, 0.15) 100%);
+            border-color: rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            color: #764ba2;
+        }
+        
+        .chat-example-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                border-radius: 20px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .header-actions {
+                padding: 15px 20px;
+                flex-direction: column;
+            }
+            
+            .ai-selector {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .history-btn {
+                width: 100%;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+            
+            .result h2 {
+                font-size: 1.5em;
+            }
+            
+            .history-modal-content {
+                margin: 20px;
+                max-height: calc(100vh - 40px);
+            }
+            
+            .chat-container {
+                height: calc(100vh - 320px);
+                min-height: 450px;
+                max-height: 600px;
+                border-radius: 20px;
+            }
+            
+            .chat-messages {
+                padding: 20px 18px;
+            }
+            
+            .chat-welcome {
+                padding: 40px 20px;
+                margin: 15px 0;
+            }
+            
+            .welcome-icon {
+                font-size: 3.5em;
+            }
+            
+            .chat-welcome h3 {
+                font-size: 1.6em;
+            }
+            
+            .chat-welcome p {
+                font-size: 0.98em;
+            }
+            
+            .chat-bubble {
+                max-width: 85%;
+                padding: 14px 18px;
+                font-size: 0.95em;
+                line-height: 1.65;
+            }
+            
+            .chat-message {
+                margin-bottom: 14px;
+                gap: 8px;
+            }
+            
+            .chat-examples {
+                padding: 14px 18px;
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .chat-example-btn {
+                width: 100%;
+                padding: 12px 16px;
+                font-size: 0.9em;
+            }
+            
+            .chat-input-container {
+                padding: 18px 20px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            
+            #chatInput {
+                width: 100%;
+                padding: 14px 18px;
+                font-size: 0.96em;
+                border-radius: 16px;
+            }
+            
+            .chat-send-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 14px 24px;
+                border-radius: 16px;
+                min-width: auto;
+            }
+            
+            .send-icon {
+                font-size: 1.2em;
+            }
+            
+            .history-body {
+                padding: 20px;
+            }
+            
+            .disease-info-box {
+                padding: 20px;
+            }
+        }
+        
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        /* Selection color */
+        ::selection {
+            background: #667eea;
+            color: white;
+        }
+        
+        ::-moz-selection {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 AI Disease Diagnosis</h1>
+            <p>Hệ thống AI chẩn đoán bệnh thông minh • Powered by Groq LLM</p>
+        </div>
+        
+        <!-- Stats removed - replaced with history button -->
+        <div class="header-actions">
+            <div class="ai-selector">
+                <label for="aiEngine">🤖 Chọn chế độ:</label>
+                <select id="aiEngine" class="ai-dropdown">
+                    <option value="groq" selected>⚡ Chẩn đoán nhanh</option>
+                    <option value="groq_chat">💬 Chatbot tư vấn (Groq)</option>
+                </select>
+            </div>
+            <button class="history-btn" onclick="toggleHistory()">
+                📜 Lịch sử tìm kiếm
+            </button>
+        </div>
+        
+        <!-- DIAGNOSIS MODE (Groq) -->
+        <div class="content" id="diagnosisMode">
+            <div class="input-section">
+                <label for="symptoms">📝 Nhập triệu chứng của bạn:</label>
+                <textarea id="symptoms" placeholder="Ví dụ: Tôi bị đau đầu, sốt cao và buồn nôn..."></textarea>
+                
+                <div class="examples">
+                    <strong>Ví dụ nhanh:</strong><br>
+                    <button class="example-btn" onclick="fillExample('Tôi bị đau đầu, sốt cao và buồn nôn')">Sốt + Đau đầu</button>
+                    <button class="example-btn" onclick="fillExample('Tôi bị ho khan, khó thở và đau ngực')">Ho + Khó thở</button>
+                    <button class="example-btn" onclick="fillExample('Tôi bị đau bụng, tiêu chảy')">Đau bụng</button>
+                    <button class="example-btn" onclick="fillExample('Tôi bị đau họng và khàn tiếng')">Đau họng</button>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="predict-btn" onclick="predict()">🔍 Chẩn đoán</button>
+                <button class="clear-btn" onclick="clearAll()">🔄 Xóa</button>
+            </div>
+            
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Đang phân tích triệu chứng...</p>
+            </div>
+            
+            <div class="error"></div>
+            
+            <div class="result"></div>
+        </div>
+        
+        <!-- CHAT MODE (Gemini) -->
+        <div class="content" id="chatMode" style="display: none;">
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="chat-welcome">
+                        <div class="welcome-icon">💬</div>
+                        <h3>Chào bạn! Tôi là Bác sĩ AI</h3>
+                        <p>Hãy mô tả triệu chứng của bạn, tôi sẽ tư vấn và giúp bạn hiểu rõ hơn về tình trạng sức khỏe.</p>
+                        <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">Powered by Groq AI ⚡</p>
+                    </div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <textarea 
+                        id="chatInput" 
+                        placeholder="Nhập triệu chứng của bạn..." 
+                        rows="3"
+                        onkeypress="handleChatKeyPress(event)"
+                    ></textarea>
+                    <button class="chat-send-btn" onclick="sendChatMessage()">
+                        <span class="send-icon">📤</span>
+                        Gửi
+                    </button>
+                </div>
+                
+                <div class="chat-examples">
+                    <button class="chat-example-btn" onclick="fillChatExample('Tôi bị đau đầu dữ dội và buồn nôn')">💊 Đau đầu + Buồn nôn</button>
+                    <button class="chat-example-btn" onclick="fillChatExample('Tôi ho nhiều, khó thở và đau ngực')">🫁 Ho + Khó thở</button>
+                    <button class="chat-example-btn" onclick="fillChatExample('Tôi bị sốt cao và mệt mỏi')">🌡️ Sốt + Mệt</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Modal -->
+        <div class="history-modal" id="historyModal">
+            <div class="history-modal-content">
+                <div class="history-header">
+                    <h2>📜 Lịch sử tìm kiếm</h2>
+                    <button class="close-history" onclick="toggleHistory()">×</button>
+                </div>
+                <div class="history-body" id="historyBody">
+                    <!-- History items will be inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>⚠️ Đây là hệ thống hỗ trợ chẩn đoán, KHÔNG thay thế bác sĩ chuyên khoa</p>
+            <p>Powered by Groq AI (Llama 3.3 70B) • Database: 23,521 mẫu ViMedical Disease</p>
+            <p style="margin-top: 10px; font-size: 0.85em; opacity: 0.7;">⚡ Ultra-fast inference with TF-IDF + LLM hybrid approach</p>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // MODE SWITCHING (Diagnosis vs Chat)
+        // ============================================
+        
+        // Listen for AI engine changes
+        document.getElementById('aiEngine').addEventListener('change', function(e) {
+            const selectedEngine = e.target.value;
+            switchMode(selectedEngine);
+        });
+        
+        function switchMode(engine) {
+            const diagnosisMode = document.getElementById('diagnosisMode');
+            const chatMode = document.getElementById('chatMode');
+            
+            if (engine === 'groq_chat' || engine === 'gemini') {
+                // Switch to chat mode (Groq or Gemini)
+                diagnosisMode.style.display = 'none';
+                chatMode.style.display = 'block';
+            } else {
+                // Switch to diagnosis mode (Groq diagnosis)
+                diagnosisMode.style.display = 'block';
+                chatMode.style.display = 'none';
+            }
+        }
+        
+        // ============================================
+        // CHAT FUNCTIONS (Gemini Mode)
+        // ============================================
+        
+        function fillChatExample(text) {
+            document.getElementById('chatInput').value = text;
+            document.getElementById('chatInput').focus();
+        }
+        
+        function handleChatKeyPress(event) {
+            // Send on Ctrl+Enter or Cmd+Enter
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                sendChatMessage();
+            }
+        }
+        
+        async function sendChatMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const message = chatInput.value.trim();
+            
+            if (!message) {
+                return;
+            }
+            
+            const chatMessages = document.getElementById('chatMessages');
+            const sendBtn = document.querySelector('.chat-send-btn');
+            
+            // Disable input
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            // Hide welcome message
+            const welcomeMsg = chatMessages.querySelector('.chat-welcome');
+            if (welcomeMsg) {
+                welcomeMsg.style.display = 'none';
+            }
+            
+            // Add user message
+            addChatMessage(message, 'user');
+            
+            // Clear input
+            chatInput.value = '';
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            try {
+                // Get selected AI engine
+                const aiEngine = document.getElementById('aiEngine').value;
+                
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symptoms: message,
+                        ai_engine: aiEngine  // groq_chat or gemini
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Debug logging
+                console.log('Chat Response Status:', response.status);
+                console.log('Chat Response Data:', data);
+                
+                // Remove typing indicator
+                removeTypingIndicator();
+                
+                // Check if we have a chat response (even if error)
+                if (data.chat_response) {
+                    // Add bot response (could be normal response or error message)
+                    addChatMessage(data.chat_response, 'bot');
+                    
+                    // If there's an error, also log to console for debugging
+                    if (data.error || data.technical_error) {
+                        console.error('Gemini API Error:', data.technical_error || data.error);
+                    }
+                } else if (data.error) {
+                    // Fallback: if no chat_response but has error
+                    addChatMessage(data.error, 'bot');
+                } else {
+                    // Generic fallback
+                    addChatMessage('Xin lỗi, tôi gặp sự cố khi xử lý câu hỏi của bạn. Vui lòng thử lại.', 'bot');
+                }
+            } catch (error) {
+                removeTypingIndicator();
+                addChatMessage('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại.', 'bot');
+            } finally {
+                // Re-enable input
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.focus();
+            }
+        }
+        
+        function addChatMessage(text, sender) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${sender}`;
+            
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'chat-bubble';
+            
+            // Format text (markdown-like)
+            const formattedText = text
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>');
+            
+            bubbleDiv.innerHTML = `<p>${formattedText}</p>`;
+            messageDiv.appendChild(bubbleDiv);
+            chatMessages.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message bot';
+            typingDiv.id = 'typingIndicator';
+            
+            const typingBubble = document.createElement('div');
+            typingBubble.className = 'chat-typing';
+            typingBubble.innerHTML = `
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            `;
+            
+            typingDiv.appendChild(typingBubble);
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+        
+        // ============================================
+        // History management
+        // ============================================
+        const HISTORY_KEY = 'disease_diagnosis_history';
+        const MAX_HISTORY = 50;
+        
+        function getHistory() {
+            const history = localStorage.getItem(HISTORY_KEY);
+            return history ? JSON.parse(history) : [];
+        }
+        
+        function saveToHistory(symptoms, disease, analysis) {
+            const history = getHistory();
+            const newItem = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                symptoms: symptoms,
+                disease: disease,
+                analysis: analysis
+            };
+            
+            // Add to beginning
+            history.unshift(newItem);
+            
+            // Keep only MAX_HISTORY items
+            if (history.length > MAX_HISTORY) {
+                history.splice(MAX_HISTORY);
+            }
+            
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+        
+        function deleteHistoryItem(id) {
+            let history = getHistory();
+            history = history.filter(item => item.id !== id);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            displayHistory();
+        }
+        
+        function clearAllHistory() {
+            if (confirm('Bạn có chắc muốn xóa toàn bộ lịch sử?')) {
+                localStorage.removeItem(HISTORY_KEY);
+                displayHistory();
+            }
+        }
+        
+        function viewHistoryItem(id) {
+            const history = getHistory();
+            const item = history.find(h => h.id === id);
+            if (item) {
+                document.getElementById('symptoms').value = item.symptoms;
+                toggleHistory();
+                // Scroll to input
+                document.getElementById('symptoms').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        function displayHistory() {
+            const history = getHistory();
+            const historyBody = document.getElementById('historyBody');
+            
+            if (history.length === 0) {
+                historyBody.innerHTML = `
+                    <div class="no-history">
+                        <div class="no-history-icon">📭</div>
+                        <p>Chưa có lịch sử tìm kiếm</p>
+                        <small>Lịch sử sẽ được lưu tự động khi bạn chẩn đoán bệnh</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            history.forEach(item => {
+                const date = new Date(item.date);
+                const dateStr = date.toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                html += `
+                    <div class="history-item">
+                        <div class="history-item-date">🕒 ${dateStr}</div>
+                        <div class="history-item-symptoms"><strong>Triệu chứng:</strong> ${item.symptoms.substring(0, 100)}${item.symptoms.length > 100 ? '...' : ''}</div>
+                        <div class="history-item-disease">🏥 Chẩn đoán: ${item.disease}</div>
+                        <div class="history-actions">
+                            <button class="history-action-btn view-btn" onclick="viewHistoryItem(${item.id})">
+                                👁️ Xem lại
+                            </button>
+                            <button class="history-action-btn delete-btn" onclick="deleteHistoryItem(${item.id})">
+                                🗑️ Xóa
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                <button class="clear-all-history" onclick="clearAllHistory()">
+                    🗑️ Xóa toàn bộ lịch sử
+                </button>
+            `;
+            
+            historyBody.innerHTML = html;
+        }
+        
+        function toggleHistory() {
+            const modal = document.getElementById('historyModal');
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+            } else {
+                displayHistory();
+                modal.style.display = 'block';
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target === modal) {
+                toggleHistory();
+            }
+        }
+        
+        function fillExample(text) {
+            document.getElementById('symptoms').value = text;
+        }
+        
+        function clearAll() {
+            document.getElementById('symptoms').value = '';
+            document.querySelector('.result').style.display = 'none';
+            document.querySelector('.error').style.display = 'none';
+        }
+        
+        async function predict() {
+            const symptoms = document.getElementById('symptoms').value.trim();
+            const aiEngine = document.getElementById('aiEngine').value;
+            
+            if (!symptoms) {
+                showError('Vui lòng nhập triệu chứng!');
+                return;
+            }
+            
+            // For Groq diagnosis mode only (not chat)
+            if (aiEngine !== 'groq') {
+                showError('Vui lòng chọn chế độ "Chẩn đoán nhanh" để sử dụng chức năng này.');
+                return;
+            }
+            
+            // Show loading with AI engine info
+            document.querySelector('.loading').style.display = 'block';
+            document.querySelector('.result').style.display = 'none';
+            document.querySelector('.error').style.display = 'none';
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        symptoms: symptoms,
+                        ai_engine: aiEngine  // Include AI engine selection
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResult(data);
+                } else {
+                    // Pass full data object for better error display
+                    showError(data);
+                }
+            } catch (error) {
+                showError('Lỗi kết nối: ' + error.message);
+            } finally {
+                document.querySelector('.loading').style.display = 'none';
+            }
+        }
+        
+        function displayResult(data) {
+            const resultDiv = document.querySelector('.result');
+            
+            // === GEMINI CHATBOT MODE ===
+            if (data.is_chatbot && data.chat_response) {
+                displayChatbotResponse(data);
+                return;
+            }
+            
+            // === GROQ DIAGNOSIS MODE ===
+            // Save to history
+            if (data.predictions && data.predictions.length > 0) {
+                const symptoms = document.getElementById('symptoms').value;
+                const disease = data.predictions[0].disease;
+                const analysis = data.analysis || '';
+                saveToHistory(symptoms, disease, analysis);
+            }
+            
+            let html = '<h2>📋 Kết quả phân tích</h2>';
+            
+            // AI Engine Badge
+            if (data.ai_engine) {
+                const engineName = data.ai_engine === 'groq' ? '⚡ Groq AI - Chẩn đoán nhanh' : '🧠 Google Gemini';
+                const engineColor = data.ai_engine === 'groq' ? '#667eea' : '#4285f4';
+                html += `<div style="text-align: center; margin-bottom: 15px;">
+                    <span style="display: inline-block; padding: 6px 15px; background: ${engineColor}; 
+                                 color: white; border-radius: 20px; font-size: 0.85em; font-weight: 600;">
+                        ${engineName}
+                    </span>
+                </div>`;
+            }
+            
+            // Analysis
+            if (data.analysis) {
+                html += `<div class="analysis">
+                    <strong>🔍 Phân tích:</strong> ${data.analysis}
+                </div>`;
+            }
+            
+            // Predictions
+            if (data.predictions && data.predictions.length > 0) {
+                html += '<div class="predictions"><h3>💡 Chẩn đoán:</h3>';
+                
+                data.predictions.forEach((pred, index) => {
+                    html += `
+                        <div class="prediction-item">
+                            <div class="disease-name">${pred.disease}</div>
+                    `;
+                    
+                    // Chỉ hiển thị probability bar nếu probability > 0
+                    if (pred.probability > 0) {
+                        html += `
+                            <div class="probability">
+                                <div class="prob-bar">
+                                    <div class="prob-fill" style="width: ${pred.probability}%">
+                                        ${pred.probability}%
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                            <div class="reason"><strong>Lý do:</strong> ${pred.reason}</div>
+                    `;
+                    
+                    // Hiển thị triệu chứng điển hình từ database
+                    if (pred.typical_symptoms && pred.typical_symptoms.length > 0) {
+                        html += `
+                            <div class="disease-detail" id="detail-${index}" style="display: none;">
+                                <div class="detail-section">
+                                    <h4>🩺 Triệu chứng điển hình từ database:</h4>
+                                    <ul>
+                        `;
+                        pred.typical_symptoms.forEach(symptom => {
+                            html += `<li>${symptom}</li>`;
+                        });
+                        html += `
+                                    </ul>
+                                    <small style="color: #6c757d;">Dựa trên ${pred.database_samples || 'nhiều'} mẫu trong database</small>
+                                </div>
+                            </div>
+                            <button class="toggle-detail-btn" onclick="toggleDetail(${index})">
+                                <span id="btn-text-${index}">📖 Xem thêm thông tin</span>
+                            </button>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+            }
+            
+            // Thông tin chi tiết về bệnh có xác suất cao nhất (từ Groq API)
+            if (data.disease_info) {
+                html += `
+                    <div class="disease-info-box">
+                        <h3>📋 Thông tin chi tiết về ${data.disease_info.disease_name}</h3>
+                `;
+                
+                // Triệu chứng đầy đủ
+                if (data.disease_info.symptoms && data.disease_info.symptoms.length > 0) {
+                    html += `
+                        <div class="detail-section">
+                            <h4>🩺 Triệu chứng đầy đủ:</h4>
+                            <ul>
+                    `;
+                    data.disease_info.symptoms.forEach(symptom => {
+                        html += `<li>${symptom}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                
+                // Cách chữa/điều trị
+                if (data.disease_info.treatment && data.disease_info.treatment.length > 0) {
+                    html += `
+                        <div class="detail-section">
+                            <h4>💊 Cách chữa/điều trị:</h4>
+                            <ul>
+                    `;
+                    data.disease_info.treatment.forEach(treat => {
+                        html += `<li>${treat}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                
+                // Nguyên nhân
+                if (data.disease_info.causes && data.disease_info.causes.length > 0) {
+                    html += `
+                        <div class="detail-section">
+                            <h4>⚠️ Nguyên nhân:</h4>
+                            <ul>
+                    `;
+                    data.disease_info.causes.forEach(cause => {
+                        html += `<li>${cause}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                
+                // Dấu hiệu nguy hiểm cần đi khám gấp
+                if (data.disease_info.urgent_signs && data.disease_info.urgent_signs.length > 0) {
+                    html += `
+                        <div class="detail-section" style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 3px solid #ff9800;">
+                            <h4 style="color: #ff6b00;">⚕️ Khi nào cần đi khám GẤP:</h4>
+                            <ul style="color: #856404;">
+                    `;
+                    data.disease_info.urgent_signs.forEach(sign => {
+                        html += `<li><strong>${sign}</strong></li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                
+                html += '</div>';
+            }
+            
+            // Recommendations
+            if (data.recommendations && data.recommendations.length > 0) {
+                html += '<div class="recommendations"><h3>💊 Khuyến nghị chung:</h3><ul>';
+                data.recommendations.forEach(rec => {
+                    html += `<li>${rec}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            // Warning
+            if (data.warning) {
+                html += `<div class="warning">⚠️ ${data.warning}</div>`;
+            }
+            
+            resultDiv.innerHTML = html;
+            resultDiv.style.display = 'block';
+            
+            // Smooth scroll to result
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function toggleDetail(index) {
+            const detailDiv = document.getElementById(`detail-${index}`);
+            const btnText = document.getElementById(`btn-text-${index}`);
+            
+            if (detailDiv.style.display === 'none') {
+                detailDiv.style.display = 'block';
+                btnText.textContent = '📕 Ẩn bớt thông tin';
+            } else {
+                detailDiv.style.display = 'none';
+                btnText.textContent = '📖 Xem thêm thông tin';
+            }
+        }
+        
+        function displayChatbotResponse(data) {
+            /**
+             * Display Gemini Chatbot response (conversational style)
+             */
+            const resultDiv = document.querySelector('.result');
+            
+            // Save to history
+            const symptoms = document.getElementById('symptoms').value;
+            saveToHistory(symptoms, "Tư vấn từ Gemini", data.chat_response.substring(0, 200));
+            
+            let html = '<h2>💬 Tư vấn từ Bác sĩ AI</h2>';
+            
+            // AI Engine Badge
+            const engineBadge = data.ai_engine === 'groq_chat' 
+                ? '⚡ Groq AI Chatbot' 
+                : '🧠 Google Gemini Chatbot';
+            const engineColor = data.ai_engine === 'groq_chat'
+                ? 'linear-gradient(135deg, #667eea, #764ba2)'
+                : 'linear-gradient(135deg, #4285f4, #34a853)';
+            
+            html += `<div style="text-align: center; margin-bottom: 20px;">
+                <span style="display: inline-block; padding: 8px 20px; background: ${engineColor}; 
+                             color: white; border-radius: 25px; font-size: 0.9em; font-weight: 600;
+                             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+                    ${engineBadge}
+                </span>
+            </div>`;
+            
+            // Chat response in a beautiful card
+            const chatResponse = data.chat_response
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')  // Bold text
+                .replace(/\n\n/g, '</p><p>')  // Paragraphs
+                .replace(/\n/g, '<br>');  // Line breaks
+            
+            html += `
+                <div class="chatbot-response" style="
+                    background: linear-gradient(135deg, rgba(66, 133, 244, 0.05), rgba(52, 168, 83, 0.05));
+                    border-left: 4px solid #4285f4;
+                    padding: 25px;
+                    border-radius: 15px;
+                    margin: 20px 0;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+                    line-height: 1.8;
+                    font-size: 1.05em;
+                    color: #333;
+                ">
+                    <p>${chatResponse}</p>
+                </div>
+            `;
+            
+            // Warning
+            if (data.warning) {
+                html += `<div class="warning" style="
+                    background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+                    color: white;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-top: 20px;
+                    text-align: center;
+                    font-weight: 500;
+                ">
+                    ⚠️ ${data.warning}
+                </div>`;
+            }
+            
+            resultDiv.innerHTML = html;
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function showError(data) {
+            const resultDiv = document.querySelector('.result');
+            
+            // If data is just a string, show simple error
+            if (typeof data === 'string') {
+                const errorDiv = document.querySelector('.error');
+                errorDiv.textContent = '❌ ' + data;
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Show detailed error with recommendations
+            let html = '<div style="text-align: center;">';
+            
+            if (data.warning) {
+                html += `<div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); 
+                                     color: white; 
+                                     padding: 25px; 
+                                     border-radius: 15px; 
+                                     margin-bottom: 20px;
+                                     font-size: 18px;
+                                     font-weight: 600;
+                                     box-shadow: 0 10px 30px rgba(255, 107, 107, 0.3);">
+                    ${data.warning}
+                </div>`;
+            }
+            
+            if (data.error) {
+                html += `<div style="background: rgba(255,255,255,0.95); 
+                                     padding: 20px; 
+                                     border-radius: 15px; 
+                                     margin-bottom: 20px;
+                                     box-shadow: 0 5px 20px rgba(0,0,0,0.1);">
+                    <p style="color: #333; font-size: 16px; margin-bottom: 15px;">${data.error}</p>
+                </div>`;
+            }
+            
+            if (data.recommendations && data.recommendations.length > 0) {
+                html += `<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                     color: white; 
+                                     padding: 25px; 
+                                     border-radius: 15px;
+                                     text-align: left;
+                                     box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);">
+                    <h3 style="margin-bottom: 15px; font-size: 18px;">💡 Gợi ý:</h3>
+                    <ul style="margin-left: 20px; line-height: 1.8;">`;
+                
+                data.recommendations.forEach(rec => {
+                    html += `<li style="margin-bottom: 10px;">${rec}</li>`;
+                });
+                
+                html += `</ul></div>`;
+            }
+            
+            html += '</div>';
+            
+            resultDiv.innerHTML = html;
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Enter key to submit
+        document.getElementById('symptoms').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                predict();
+            }
+        });
+    </script>
+</body>
+</html>
+
+

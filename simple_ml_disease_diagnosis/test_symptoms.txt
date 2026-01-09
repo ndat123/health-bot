@@ -1,0 +1,16 @@
+# File mẫu chứa các triệu chứng để test batch prediction
+# Mỗi dòng là 1 case
+# Sử dụng: python inference.py --batch-file test_symptoms.txt --output results.json
+
+Đau đầu, sốt cao, mệt mỏi, buồn nôn
+Ho khan, khó thở, đau ngực, sốt nhẹ
+Đau bụng, tiêu chảy, buồn nôn, mệt mỏi
+Ngứa da, phát ban đỏ, sưng
+Đau khớp, sưng khớp, khó cử động
+Chóng mặt, hoa mắt, yếu người, đau đầu
+Đau lưng dưới, tê chân tay
+Mất ngủ, lo âu, căng thẳng, đau đầu
+Sổ mũi, ho, đau họng, sốt nhẹ
+Đau răng, sưng nướu, chảy máu chân răng
+
+

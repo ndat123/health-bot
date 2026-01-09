@@ -1,0 +1,5 @@
+# Requirements cho Gemini Disease Diagnosis System
+google-generativeai>=0.3.0
+pandas>=2.0.0
+
+
