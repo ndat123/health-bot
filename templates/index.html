@@ -1910,53 +1910,101 @@
             if (data.predictions && data.predictions.length > 0) {
                 html += '<div class="predictions"><h3>💡 Chẩn đoán:</h3>';
                 
-                data.predictions.forEach((pred, index) => {
+                // --- TOP 1 (MAIN PREDICTION) ---
+                if (data.predictions.length > 0) {
+                    const top1 = data.predictions[0];
                     html += `
-                        <div class="prediction-item">
-                            <div class="disease-name">${pred.disease}</div>
+                        <div class="prediction-item" style="border: 2px solid #667eea; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2); transform: scale(1.02);">
+                            <div class="disease-name" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                🏆 ${top1.disease}
+                            </div>
                     `;
                     
-                    // Chỉ hiển thị probability bar nếu probability > 0
-                    if (pred.probability > 0) {
+                    if (top1.probability > 0) {
                         html += `
                             <div class="probability">
                                 <div class="prob-bar">
-                                    <div class="prob-fill" style="width: ${pred.probability}%">
-                                        ${pred.probability}%
+                                    <div class="prob-fill" style="width: ${top1.probability}%">
+                                        ${top1.probability}%
                                     </div>
                                 </div>
                             </div>
                         `;
                     }
                     
-                    html += `
-                            <div class="reason"><strong>Lý do:</strong> ${pred.reason}</div>
-                    `;
+                    html += `<div class="reason"><strong>Lý do:</strong> ${top1.reason}</div>`;
                     
-                    // Hiển thị triệu chứng điển hình từ database
-                    if (pred.typical_symptoms && pred.typical_symptoms.length > 0) {
+                    if (top1.typical_symptoms && top1.typical_symptoms.length > 0) {
                         html += `
-                            <div class="disease-detail" id="detail-${index}" style="display: none;">
+                            <div class="disease-detail" id="detail-0" style="display: none;">
                                 <div class="detail-section">
-                                    <h4>🩺 Triệu chứng điển hình từ database:</h4>
+                                    <h4>🩺 Triệu chứng điển hình:</h4>
                                     <ul>
                         `;
-                        pred.typical_symptoms.forEach(symptom => {
+                        top1.typical_symptoms.forEach(symptom => {
                             html += `<li>${symptom}</li>`;
                         });
                         html += `
                                     </ul>
-                                    <small style="color: #6c757d;">Dựa trên ${pred.database_samples || 'nhiều'} mẫu trong database</small>
+                                    <small style="color: #6c757d;">Dựa trên ${top1.database_samples || 'nhiều'} mẫu trong database</small>
                                 </div>
                             </div>
-                            <button class="toggle-detail-btn" onclick="toggleDetail(${index})">
-                                <span id="btn-text-${index}">📖 Xem thêm thông tin</span>
+                            <button class="toggle-detail-btn" onclick="toggleDetail(0)">
+                                <span id="btn-text-0">📖 Xem chi tiết bệnh này</span>
                             </button>
                         `;
                     }
-                    
                     html += '</div>';
-                });
+                }
+
+                // --- TOP 2, 3, ... (OTHER PREDICTIONS) ---
+                if (data.predictions.length > 1) {
+                    html += `
+                        <h3 style="margin-top: 40px; color: #718096; font-size: 1.3em; border-top: 2px dashed #e2e8f0; padding-top: 30px;">
+                            🤔 Ngoài ra có thể là (Top ${data.predictions.length} tiếp theo):
+                        </h3>
+                        <div class="other-predictions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    `;
+                    
+                    for (let i = 1; i < data.predictions.length; i++) {
+                        const pred = data.predictions[i];
+                        html += `
+                            <div class="prediction-item" style="margin-bottom: 0; padding: 20px; border-left: 4px solid #cbd5e0;">
+                                <div class="disease-name" style="font-size: 1.3em; padding: 10px; background: #f7fafc; color: #4a5568; margin-bottom: 10px;">
+                                    #${i+1}. ${pred.disease}
+                                </div>
+                        `;
+                        
+                        if (pred.probability > 0) {
+                             html += `
+                                <div class="probability" style="margin-bottom: 10px;">
+                                    <div class="prob-bar" style="height: 10px; background: #edf2f7;">
+                                        <div class="prob-fill" style="width: ${pred.probability}%; background: #a0aec0; font-size: 0px;"></div>
+                                    </div>
+                                    <span style="font-size: 0.8em; color: #718096; margin-left: 5px;">${pred.probability}%</span>
+                                </div>`;
+                        }
+
+                        html += `<div class="reason" style="font-size: 0.9em; padding: 10px; background: transparent;">${pred.reason}</div>`;
+                        
+                        // Toggle detail cho bệnh phụ (nếu cần)
+                        if (pred.typical_symptoms && pred.typical_symptoms.length > 0) {
+                            html += `
+                                <div class="disease-detail" id="detail-${i}" style="display: none; padding: 10px; font-size: 0.9em;">
+                                    <ul>`;
+                            pred.typical_symptoms.slice(0, 2).forEach(s => html += `<li>${s.substring(0, 80)}...</li>`);
+                            html += `</ul>
+                                </div>
+                                <button class="toggle-detail-btn" onclick="toggleDetail(${i})" style="padding: 5px 15px; font-size: 0.8em; background: #cbd5e0; color: #4a5568; box-shadow: none;">
+                                    <span id="btn-text-${i}">Xem thêm</span>
+                                </button>
+                            `;
+                        }
+
+                        html += '</div>';
+                    }
+                    html += '</div>';
+                }
                 
                 html += '</div>';
             }

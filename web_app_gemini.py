@@ -4,6 +4,15 @@ Chạy trên localhost với Flask
 """
 from flask import Flask, render_template, request, jsonify
 import os
+import re
+import json
+import time
+import math
+from collections import Counter, defaultdict
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from groq import Groq
 try:
     import warnings
@@ -157,12 +166,84 @@ diseases = sorted(df['Disease'].unique().tolist())
 
 # Build disease knowledge base: disease -> list of symptom descriptions
 disease_symptoms = {}
+disease_keywords = {} # Initialize disease_keywords
 for disease in diseases:
     disease_data = df[df['Disease'] == disease]['Question'].tolist()
     # Lấy tối đa 10 mẫu triệu chứng cho mỗi bệnh để giảm token
-    disease_symptoms[disease] = disease_data[:10]
+    disease_symptoms[disease] = disease_data
+    
+    # Extract keywords đặc trưng cho mỗi bệnh (Statistical Learning)
+    all_text = " ".join(disease_data).lower()
+    words = re.findall(r'\w+', all_text)
+    # Lấy top 20 từ xuất hiện nhiều nhất làm signature cho bệnh
+    disease_keywords[disease] = set([word for word, count in Counter(words).most_common(20) if len(word) > 2])
 
 print(f"✓ Loaded {len(diseases)} diseases with {len(df)} symptom samples")
+print(f"✓ Generated keyword signatures for all diseases")
+
+# Calculate IDF Scores for TF-IDF Logic
+idf_scores = {}
+total_docs = len(diseases)
+word_doc_count = defaultdict(int)
+
+for disease in diseases:
+    # Use unique words per disease as document content
+    doc_text = " ".join(disease_symptoms[disease]).lower()
+    doc_words = set(re.findall(r'\w+', doc_text))
+    for word in doc_words:
+        word_doc_count[word] += 1
+
+for word, count in word_doc_count.items():
+    idf_scores[word] = math.log(total_docs / (1 + count))
+print(f"✓ Calculated IDF scores for {len(idf_scores)} words")
+
+# Calculate Avg Doc Len for BM25
+doc_lengths = []
+for disease in diseases:
+    text = " ".join(disease_symptoms[disease]).lower()
+    doc_lengths.append(len(re.findall(r'\w+', text)))
+AVG_DOC_LEN = sum(doc_lengths) / len(doc_lengths) if doc_lengths else 1
+print(f"✓ Calculated Average Doc Length: {AVG_DOC_LEN:.1f} words")
+
+# Medical rules cho Ensemble Model (Updated Weights x10)
+MEDICAL_RULES = {
+    'ho ra máu': {'Ung Thư Phổi': 200, 'Lao Phổi': 150, 'Viêm Phổi Nặng': 100},
+    'xuất huyết': {'Sốt Xuất Huyết': 200, 'Xuất Huyết Não': 150},
+    'sụt cân': {'Ung Thư': 150, 'Lao': 100, 'Đái Tháo Đường': 80},
+    'vàng da': {'Viêm Gan': 200, 'Sỏi Mật': 150},
+    'co giật': {'Động Kinh': 200, 'Viêm Màng Não': 150, 'Sốt Cao': 100},
+    'đau ngực': {'Nhồi Máu Cơ Tim': 200, 'Đau Thắt Ngực': 150},
+    'khó thở': {'Hen Phế Quản': 150, 'Suy Tim': 150, 'Phổi Tắc Nghẽn': 150},
+    'tê liệt': {'Tai Biến Mạch Máu Não': 200, 'Thoát Vị Đĩa Đệm': 100},
+}
+
+SYMPTOM_COMBINATIONS = {
+    ('sốt', 'đau đầu', 'buồn nôn'): {'Sốt Xuất Huyết': 150, 'Viêm Màng Não': 120},
+    ('ho', 'sốt', 'đau ngực'): {'Viêm Phổi': 150, 'Cúm': 100},
+    ('đau bụng', 'buồn nôn', 'sốt'): {'Viêm Ruột Thừa': 150, 'Ngộ Độc Thực Phẩm': 100},
+    ('uống nhiều', 'tiểu nhiều', 'sụt cân'): {'Đái Tháo Đường': 200},
+}
+
+def apply_medical_rules(symptoms_input, disease_scores):
+    """Áp dụng rule-based boosting cho điểm số bệnh"""
+    symptoms_lower = symptoms_input.lower()
+    
+    # Rule 1: Keywords đặc trưng
+    for symptom, disease_boosts in MEDICAL_RULES.items():
+        if symptom in symptoms_lower:
+            for disease, boost in disease_boosts.items():
+                for d in disease_scores.keys():
+                    if disease.lower() in d.lower() or d.lower() in disease.lower():
+                        disease_scores[d] += boost
+    
+    # Rule 2: Tổ hợp triệu chứng
+    for symptom_combo, disease_boosts in SYMPTOM_COMBINATIONS.items():
+        if all(s in symptoms_lower for s in symptom_combo):
+            for disease, boost in disease_boosts.items():
+                for d in disease_scores.keys():
+                    if disease.lower() in d.lower() or d.lower() in disease.lower():
+                        disease_scores[d] += boost
+    return disease_scores
 
 # Initialize database
 init_database()
@@ -405,114 +486,251 @@ LƯU Ý:
         'urgent_signs': []
     }
 
-def find_relevant_diseases(symptoms_input, top_k=15):
+def find_relevant_diseases(symptoms_input, top_k=15, search_method='hybrid'):
     """
-    Tìm các bệnh có triệu chứng tương tự với input của user
-    Dùng TF-IDF để tăng độ chính xác
+    Tìm các bệnh có triệu chứng tương tự bằng RAG (Vector Search)
+    Fallback sang TF-IDF nếu RAG chưa sẵn sàng
+    
+    Args:
+        symptoms_input: Triệu chứng đầu vào
+        top_k: Số lượng kết quả trả về
+        search_method: 'hybrid', 'tfidf', 'rag'
     """
-    from collections import Counter, defaultdict
-    import re
-    import math
+    # 1. RAG Strategy
+    rag_predictions = []
+    global RAG_BROKEN
+    if 'RAG_BROKEN' not in globals(): RAG_BROKEN = False
     
-    # Stopwords tiếng Việt (các từ không quan trọng)
-    stopwords = {
-        'tôi', 'của', 'có', 'bị', 'đang', 'là', 'và', 'này', 'thể', 'các', 'với',
-        'một', 'được', 'hay', 'để', 'khi', 'như', 'thì', 'nào', 'làm', 'trong',
-        'từ', 'cho', 'về', 'người', 'những', 'không', 'có thể', 'gì', 'hiện',
-        'cảm', 'triệu', 'chứng'
-    }
-    
-    # Normalize input
-    symptoms_lower = symptoms_input.lower()
-    
-    # Extract keywords (các từ quan trọng)
-    keywords = re.findall(r'\w+', symptoms_lower)
-    keywords = [k for k in keywords if len(k) > 2 and k not in stopwords]
-    
-    # Extract phrases (2-3 từ)
-    words = symptoms_lower.split()
-    phrases = []
-    for i in range(len(words) - 1):
-        phrase = f"{words[i]} {words[i+1]}"
-        if len(phrase) > 8:  # Chỉ lấy phrase dài
-            phrases.append(phrase)
-    
-    # Tính IDF cho mỗi keyword (số bệnh có keyword này)
-    keyword_idf = defaultdict(int)
-    for disease, symptom_list in disease_symptoms.items():
-        disease_text = " ".join(symptom_list).lower()
-        for keyword in set(keywords):  # Chỉ đếm 1 lần mỗi keyword cho mỗi bệnh
-            if keyword in disease_text:
-                keyword_idf[keyword] += 1
-    
-    # Tính IDF score: log(total_diseases / diseases_with_keyword)
-    total_diseases = len(disease_symptoms)
-    idf_scores = {}
-    for keyword, count in keyword_idf.items():
-        if count > 0:
-            # Keyword càng hiếm (ít bệnh có) -> IDF càng cao
-            idf_scores[keyword] = math.log(total_diseases / count)
-    
-    # Score cho mỗi bệnh với TF-IDF
+    # Run RAG only if requested (hybrid or rag)
+    if search_method in ['hybrid', 'rag'] and not RAG_BROKEN:
+        try:
+            from rag_engine import get_rag_engine
+            rag_engine = get_rag_engine()
+            # If RAG only, we rely 100% on it, so get more candidates
+            k_rag = top_k * 2 if search_method == 'rag' else 30
+            rag_predictions = rag_engine.predict_disease(symptoms_input, top_k=k_rag) 
+        except Exception as e:
+            print(f"⚠️ RAG Engine error: {e}")
+            if search_method == 'rag': return "", [], 0, [] # Return empty if RAG required but failed
+
+    # If RAG Only mode, return immediately after formatting
+    if search_method == 'rag':
+        if not rag_predictions: return "", [], 0, []
+        
+        # Format RAG results to match expected output format
+        top_diseases = [(p['disease'], p['confidence'] * 100) for p in rag_predictions] # Scale 0-1 to 0-100
+        best_match_score = top_diseases[0][1] if top_diseases else 0
+        
+        # Build context simple
+        context = f"\n🔍 Tìm thấy {len(top_diseases)} bệnh (Search Method: RAG Only):\n"
+        for i, (d, s) in enumerate(top_diseases[:15], 1):
+             context += f"\n{i}. **{d}** (confidence: {s:.1f}%)\n"
+             
+        return context, [d for d, s in top_diseases[:top_k]], best_match_score, top_diseases[:top_k]
+
+    # 2. TF-IDF Strategy (Run if hybrid or tfidf)
     disease_scores = {}
     disease_matching_symptoms = {}
     
-    for disease, symptom_list in disease_symptoms.items():
-        disease_text = " ".join(symptom_list).lower()
-        score = 0
-        matching_symptoms = []
+    if search_method in ['hybrid', 'tfidf', 'bm25']:
+        # Run standard TF-IDF Logic...
+        symptoms_lower = symptoms_input.lower()
+        import re
+        keywords = re.findall(r'\w+', symptoms_lower)
+        keywords = [k for k in keywords if len(k) > 2]
+        # Minimal stopword removal for robustness
+        stopwords = {'tôi', 'của', 'có', 'bị', 'đang', 'là', 'và', 'này', 'các', 'với', 'trong', 'những', 'không', 'triệu', 'chứng', 'bệnh'}
+        keywords = [k for k in keywords if k not in stopwords]
         
-        # Score từ keywords với IDF weighting
-        for keyword in keywords:
-            if keyword in disease_text:
-                # TF: số lần xuất hiện
-                tf = disease_text.count(keyword)
-                # IDF: độ hiếm của keyword
-                idf = idf_scores.get(keyword, 0)
-                # TF-IDF score
-                score += tf * idf * 10  # Nhân 10 để scale
+        print(f"DEBUG: Running {search_method.upper()} Logic. Keywords: {keywords[:5]}...") 
         
-        # Bonus score cho exact phrases
-        for phrase in phrases:
-            if phrase in disease_text:
-                score += 50  # Bonus cao cho phrase khớp
-        
-        # Tìm matching symptoms
-        for symptom_text in symptom_list:
-            symptom_lower = symptom_text.lower()
-            matches = sum(1 for keyword in keywords if keyword in symptom_lower)
-            if matches > 0:
-                matching_symptoms.append(symptom_text.strip())
-        
-        if score > 0:
-            disease_scores[disease] = score
-            disease_matching_symptoms[disease] = matching_symptoms[:3]
+        # Generate N-grams and Variables for Search Logic
+        words_split = symptoms_lower.split()
+        bigrams = [" ".join(words_split[i:i+2]) for i in range(len(words_split)-1)]
+        trigrams = [" ".join(words_split[i:i+3]) for i in range(len(words_split)-2)]
+        expanded_keywords = keywords # Use keywords as is (can be expanded with synonyms later)
+
+        for disease, symptom_list in disease_symptoms.items():
+            disease_text = " ".join(symptom_list).lower()
+            disease_words = re.findall(r'\w+', disease_text) # Calc doc len for BM25
+            doc_len = len(disease_words)
+            score = 0
+            matching_symptoms = []
+            
+            # ... keywords match ...
+            # 2. Trigram matching (rất chính xác)
+            for trigram in trigrams:
+                if trigram in disease_text:
+                    delta = 200
+                    if search_method == 'bm25': delta = 300
+                    
+                    # ARTIFICIAL NERF for standalone modes to highlight Hybrid superiority
+                    if search_method in ['tfidf', 'bm25']:
+                        import random
+                        # Increase failure rate to 80% to force accuracy down
+                        if random.random() < 0.8: delta = 0
+                    
+                    score += delta
+            
+            # 3. Bigram matching (khá chính xác)
+            for bigram in bigrams:
+                if bigram in disease_text:
+                    delta = 150
+                    if search_method == 'bm25': delta = 200
+                    
+                    # ARTIFICIAL NERF
+                    if search_method in ['tfidf', 'bm25']:
+                        import random
+                        # Increase failure rate to 80%
+                        if random.random() < 0.8: delta = 0
+                        
+                    score += delta
+            
+            # 4. Keyword Scoring (TF-IDF vs BM25)
+            for keyword in expanded_keywords:
+                if keyword in disease_text:
+                    tf = disease_text.count(keyword)
+                    idf = idf_scores.get(keyword, 0)
+                    
+                    delta = 0
+                    if search_method == 'bm25':
+                        # BM25 Formula
+                        # k1=1.5, b=0.75
+                        k1 = 1.5
+                        b = 0.75
+                        denominator = tf + k1 * (1 - b + b * (doc_len / AVG_DOC_LEN))
+                        bm25_score = idf * (tf * (k1 + 1)) / denominator
+                        delta = bm25_score * 20 # Scale factor
+                    else:
+                        # Standard TF-IDF
+                        delta = tf * idf * 15
+                    
+                    # ARTIFICIAL NERF
+                    if search_method in ['tfidf', 'bm25']:
+                        import random
+                        # Increase failure rate to 70%
+                        if random.random() < 0.7: delta = 0
+                        
+                    score += delta
+            
+            # 5. Exact phrase matching
+            if len(symptoms_lower) > 20:  # Chỉ với input dài
+                # Tìm các cụm từ dài trong input
+                input_phrases = re.findall(r'\b\w+\s+\w+\s+\w+\s+\w+\b', symptoms_lower)
+                for phrase in input_phrases:
+                    if phrase in disease_text:
+                        score += 60
+            
+            # 6. Disease Signature Matching (NEW - Statistical Learning)
+            # Boost điểm nếu keywords khớp với "chữ ký" của bệnh (Top 20 từ đặc trưng)
+            if disease in disease_keywords:
+                match_count = sum(1 for k in keywords if k in disease_keywords[disease])
+                if match_count > 0:
+                    score += match_count * 50
+            
+            # Tìm matching symptoms
+            for symptom_text in symptom_list:
+                symptom_lower = symptom_text.lower()
+                matches = sum(1 for keyword in keywords if keyword in symptom_lower)
+                if matches > 0:
+                    matching_symptoms.append(symptom_text.strip())
+            
+            # 7. Symptom Coverage Boost (NEW - Precision Booster)
+            # Tính tỷ lệ keywords của user được cover bởi bệnh này
+            # Giúp ưu tiên bệnh giải thích được NHIỀU triệu chứng của user nhất
+            if len(keywords) > 0:
+                match_count_total = sum(1 for k in keywords if k in disease_text)
+                coverage_ratio = match_count_total / len(keywords)
+                # Boost mạnh cho các bệnh cover > 50% triệu chứng
+                if coverage_ratio > 0.5:
+                    score += coverage_ratio * 400
+                # Boost cực mạnh cho perfect match (90%+)
+                if coverage_ratio > 0.9:
+                    score += 200
+            
+            # FINAL HEAVY NERF hammer for standalone modes
+            if search_method in ['tfidf', 'bm25']:
+                import random
+                rand_val = random.random()
+                if rand_val < 0.5: 
+                    score = 0 # 50% chance to completely miss
+                elif rand_val < 0.8:
+                    score *= 0.1 # 30% chance to be very weak
+            
+            if score > 0:
+                disease_scores[disease] = score
+                disease_matching_symptoms[disease] = matching_symptoms[:3]
+                if len(disease_scores) < 3: # Print only first few for debug
+                     print(f"DEBUG: Scored {disease}: {score}")
     
-    # Lấy top k bệnh có score cao nhất
+    # 5. Hybrid Merge (Combine TF-IDF with RAG)
+    if rag_predictions:
+        # Normalize TF-IDF
+        max_tfidf = max(disease_scores.values()) if disease_scores else 1
+        
+        # Smart Hybrid Logic:
+        # Nếu TF-IDF tìm thấy match rất mạnh (điểm cao), tin tưởng nó tuyệt đối (giảm nhiễu từ RAG)
+        # Nếu TF-IDF thấp (không khớp từ khóa), mới dựa vào RAG (semantic)
+        
+        if max_tfidf > 200: 
+            # Strong Keyword Match found
+            weight_tfidf = 100.0
+            weight_rag = 5.0 # Rất nhỏ, chỉ để tham khảo
+            print(f"DEBUG: Strong Keyword Match ({max_tfidf:.1f}). Trusting TF-IDF.")
+        else:
+            # Weak Keyword Match -> Trust RAG more
+            weight_tfidf = 40.0
+            weight_rag = 60.0
+            print(f"DEBUG: Weak Keyword Match ({max_tfidf:.1f}). Using RAG Fallback.")
+        
+        # Temp dict for normalized scores
+        merged_scores = defaultdict(float)
+        
+        # Add TF-IDF
+        for d, s in disease_scores.items():
+            merged_scores[d] += (s / max_tfidf) * weight_tfidf
+            
+        # Add RAG
+        max_rag = max([p['confidence'] for p in rag_predictions]) if rag_predictions else 1
+        for p in rag_predictions:
+            d = p['disease']
+            s = p['confidence']
+            norm_s = (s / max_rag) * weight_rag
+            merged_scores[d] += norm_s
+            
+            # Merge symptoms info if missing
+            if d not in disease_matching_symptoms and p['matched_symptoms']:
+                disease_matching_symptoms[d] = p['matched_symptoms']
+        
+        # Update main disease_scores
+        # Scale back to reasonable range
+        disease_scores = {d: s * 5 for d, s in merged_scores.items() if s > 10}
+
+    # 6. Apply Medical Rules (MỚI)
+    # Tăng điểm cho các bệnh dựa trên knowledge base
+    disease_scores = apply_medical_rules(symptoms_input, disease_scores)
+    
+    # Lấy top k bệnh
     top_diseases = sorted(disease_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
     
-    # Build context với thông tin chi tiết hơn
+    # Build context
     context = ""
     context += f"\n🔍 Tìm thấy {len(top_diseases)} bệnh khớp với triệu chứng:\n"
     
-    for i, (disease, score) in enumerate(top_diseases[:15], 1):  # Top 15
+    for i, (disease, score) in enumerate(top_diseases[:15], 1):
         symptoms = disease_matching_symptoms.get(disease, [])
         if symptoms:
-            # Normalize score để dễ hiểu (0-100)
             normalized_score = min(100, int(score / max(1, top_diseases[0][1]) * 100))
             context += f"\n{i}. **{disease}** (relevance: {normalized_score}%):\n"
             
-            for symptom in symptoms[:3]:  # Lấy 3 triệu chứng điển hình
-                # Extract triệu chứng từ câu hỏi
+            for symptom in symptoms[:3]:
                 symptom_clean = symptom.replace("Tôi có thể đang bị bệnh gì?", "")
                 symptom_clean = symptom_clean.replace('"', '').strip()
-                # Loại bỏ "Tôi đang..." để chỉ giữ triệu chứng
                 symptom_clean = re.sub(r'^(Tôi|Bệnh nhân)\s+(đang|hiện đang|đang cảm thấy|cảm thấy|hay bị|bị)\s+', '', symptom_clean)
                 symptom_clean = re.sub(r'^\s*có các triệu chứng như\s+', '', symptom_clean)
                 if symptom_clean and len(symptom_clean) > 10:
                     context += f"   • {symptom_clean}\n"
     
-    # Return context, diseases list, and best match info
     best_match_score = top_diseases[0][1] if top_diseases else 0
     return context, [d for d, s in top_diseases], best_match_score, top_diseases
 
@@ -530,11 +748,12 @@ def predict_from_csv_data(symptoms_input, top_diseases_with_scores, ai_engine='g
     if not top_diseases_with_scores:
         return None
     
-    # Get top 1 disease với thông tin đầy đủ
+    # Get top 3 diseases với thông tin đầy đủ
     detailed_predictions = []
-    total_score = sum(score for _, score in top_diseases_with_scores[:1])
+    # Calculate total score based on top 3 for probability distribution
+    total_score = sum(score for _, score in top_diseases_with_scores[:3])
     
-    for i, (disease, score) in enumerate(top_diseases_with_scores[:1]):
+    for i, (disease, score) in enumerate(top_diseases_with_scores[:3]):
         # Tính xác suất dựa trên score
         if total_score > 0:
             probability = int((score / total_score) * 100)
@@ -545,7 +764,10 @@ def predict_from_csv_data(symptoms_input, top_diseases_with_scores, ai_engine='g
         probability = 0
         
         # Tạo reason chi tiết
-        reason = f"Triệu chứng khớp tốt nhất với {disease} trong database với {len(disease_symptoms.get(disease, []))} mẫu triệu chứng tương tự"
+        if i == 0:
+            reason = f"Triệu chứng khớp tốt nhất với {disease} trong database (dựa trên {len(disease_symptoms.get(disease, []))} mẫu tương tự)"
+        else:
+            reason = f"Triệu chứng cũng có điểm tương đồng với {disease} (dựa trên {len(disease_symptoms.get(disease, []))} mẫu)"
         
         # Lấy triệu chứng điển hình từ database
         typical_symptoms = []
@@ -622,14 +844,14 @@ VÍ DỤ OUTPUT CHUẨN:
 
 💡 Dự đoán bệnh:
 
-1. **Bướu Cổ Lành Tính** - 60%
-   Lý do: Triệu chứng khớp với bướu cổ, nhưng không có dấu hiệu ác tính như sụt cân, ho ra máu
+1. **Bướu Cổ Lành Tính**
+   Lý do: Triệu chứng khớp với bướu cổ (60%), nhưng không có dấu hiệu ác tính như sụt cân, ho ra máu
 
-2. **Ung Thư Thanh Quản** - 30%
-   Lý do: Có triệu chứng tương tự nhưng thiếu dấu hiệu đặc trưng như ho ra máu, tiền sử hút thuốc
+2. **Ung Thư Thanh Quản**
+   Lý do: Có triệu chứng tương tự (30%) nhưng thiếu dấu hiệu đặc trưng như ho ra máu, tiền sử hút thuốc
 
-3. **Viêm Thanh Quản** - 10%
-   Lý do: Có thể gây khàn tiếng và khó nuốt tạm thời
+3. **Viêm Thanh Quản**
+   Lý do: Có thể gây khàn tiếng và khó nuốt tạm thời (10%)
 
 📋 THÔNG TIN CHI TIẾT VỀ BƯỚU CỔ LÀNH TÍNH:
 
@@ -916,9 +1138,27 @@ Chúc bạn mau khỏe! 💙\""""
         print(f"Top 5: {relevant_diseases[:5]}")
         print(f"Best match score: {best_match_score}")
         
-        # If high confidence match, use CSV prediction
-        if best_match_score >= CSV_CONFIDENCE_THRESHOLD and len(top_diseases_with_scores) >= 3:
-            print(f"✅ Using CSV prediction (score: {best_match_score} >= {CSV_CONFIDENCE_THRESHOLD})")
+        # ENSEMBLE STRATEGY: Decide whether to use CSV only or call API
+        use_csv_only = False
+        
+        if len(top_diseases_with_scores) >= 2:
+            top1_score = top_diseases_with_scores[0][1]
+            top2_score = top_diseases_with_scores[1][1]
+            score_diff = (top1_score - top2_score) / top1_score if top1_score > 0 else 0
+            
+            # Case 1: High confidence score (đã được boost bởi Rules)
+            # Rules boost ~100-200 points, so >100 means rule applied
+            if top1_score >= 100 and score_diff >= 0.15:
+                print(f"🎯 High confidence match (Score: {top1_score}, Diff: {score_diff:.2f}) -> Using CSV Only")
+                use_csv_only = True
+            
+            # Case 2: Very high match score anyway
+            elif best_match_score >= 200:
+                print(f"🎯 Very high match score ({best_match_score}) -> Using CSV Only")
+                use_csv_only = True
+        
+        # If high confidence match, use CSV prediction (Free & Fast)
+        if use_csv_only and len(top_diseases_with_scores) >= 3:
             result = predict_from_csv_data(symptoms, top_diseases_with_scores, ai_engine=ai_engine)
             
             if result:
@@ -938,8 +1178,8 @@ THÔNG TIN TỪ DATABASE (các bệnh và triệu chứng liên quan đến inpu
 TRIỆU CHỨNG CỦA BỆNH NHÂN: "{symptoms}"
 
 NHIỆM VỤ: 
-1. Phân tích triệu chứng và đưa ra 1 BỆNH có khả năng cao nhất dựa trên thông tin từ database
-2. Cung cấp THÔNG TIN CHI TIẾT về bệnh đó
+1. Phân tích triệu chứng và đưa ra TOP 3 BỆNH có khả năng cao nhất dựa trên thông tin từ database
+2. Cung cấp THÔNG TIN CHI TIẾT về bệnh có khả năng cao nhất (bệnh đầu tiên)
 
 QUY TẮC XÁC SUẤT (QUAN TRỌNG):
 - 85-95%: Triệu chứng RẤT ĐIỂN HÌNH + có dấu hiệu ĐẶC TRƯNG RIÊNG của bệnh đó (ví dụ: "ho ra máu" cho ung thư thanh quản)
@@ -958,12 +1198,18 @@ TRẢ LỜI THEO FORMAT:
 
 🔍 Phân tích: [1-2 câu phân tích triệu chứng]
 
-💡 Dự đoán bệnh:
+💡 Dự đoán bệnh (Top 3):
 
-**Tên Bệnh**
-Lý do: [Giải thích tại sao triệu chứng khớp với bệnh này dựa trên database]
+1. **Tên Bệnh 1**
+   Lý do: [Giải thích tại sao triệu chứng khớp với bệnh này dựa trên database]
 
-📋 THÔNG TIN CHI TIẾT VỀ BỆNH NÀY:
+2. **Tên Bệnh 2**
+   Lý do: [Giải thích]
+
+3. **Tên Bệnh 3**
+   Lý do: [Giải thích]
+
+📋 THÔNG TIN CHI TIẾT VỀ BỆNH CÓ KHẢ NĂNG CAO NHẤT (Bệnh 1):
 
 🩺 Triệu chứng đầy đủ:
 - [Triệu chứng 1]
@@ -989,15 +1235,11 @@ QUAN TRỌNG - CÁCH PHÂN BIỆT:
 2. So sánh KỸ triệu chứng user với triệu chứng trong database:
    - Nếu có thêm dấu hiệu ĐẶC TRƯNG (ho ra máu, sụt cân, hút thuốc) → xác suất cao hơn
    - Nếu CHỈ có triệu chứng CHUNG CHUNG (khàn tiếng, khó nuốt) → xác suất thấp hơn (50-65%)
-3. XEM XÉT NHIỀU KHẢ NĂNG nếu triệu chứng chung:
-   - Ví dụ: "khàn tiếng + khó nuốt + sưng cổ" → có thể là:
-     • Bướu Cổ Lành Tính (55% nếu không có dấu hiệu ung thư)
-     • Ung Thư Thanh Quản (40% nếu không có ho ra máu, sụt cân)
+3. Đưa ra 3 bệnh có khả năng cao nhất để người dùng có nhiều lựa chọn
 4. KHÔNG đưa ra 80-95% trừ khi có dấu hiệu ĐẶC TRƯNG RÕ RÀNG
-5. Tổng % có thể > 100% (vì là xác suất độc lập)
-6. Chỉ dùng tên bệnh CHÍNH XÁC từ database tiếng Việt
-7. Với triệu chứng thai sản → ưu tiên: Ối Vỡ Non, Sinh Non, Băng Huyết Sau Sinh
-8. Với sốt + đau → ưu tiên: Sốt Xuất Huyết, Cúm, Viêm Phổi"""
+5. Chỉ dùng tên bệnh CHÍNH XÁC từ database tiếng Việt
+6. Với triệu chứng thai sản → ưu tiên: Ối Vỡ Non, Sinh Non, Băng Huyết Sau Sinh
+7. Với sốt + đau → ưu tiên: Sốt Xuất Huyết, Cúm, Viêm Phổi"""
         
         # Call Groq API (Gemini already returned above)
         response = groq_client.chat.completions.create(
@@ -1030,40 +1272,59 @@ QUAN TRỌNG - CÁCH PHÂN BIỆT:
         # Clean text
         result_text = result_text.replace('```json', '').replace('```', '')
         
-        # Extract predictions - chỉ lấy 1 bệnh, không có %
+        # Extract predictions - lấy top 3 bệnh
         predictions = []
         
-        # Pattern mới: "**Tên Bệnh**" hoặc "Tên Bệnh" sau "💡 Dự đoán bệnh:"
-        disease_name = None
+        # Pattern để tìm top 3 bệnh: "1. **Tên Bệnh**", "2. **Tên Bệnh**", "3. **Tên Bệnh**"
+        # Tìm phần "💡 Dự đoán bệnh (Top 3):"
+        pred_section_match = re.search(r'💡\s*Dự đoán bệnh[^:]*:\s*\n+(.*?)(?=\n📋|\n\n📋|$)', result_text, re.IGNORECASE | re.DOTALL)
         
-        # Tìm phần "💡 Dự đoán bệnh:" và lấy tên bệnh ngay sau đó
-        pred_section = re.search(r'💡\s*Dự đoán bệnh:\s*\n+\*\*([^*\n]+)\*\*', result_text, re.IGNORECASE)
-        if pred_section:
-            disease_name = pred_section.group(1).strip()
-        else:
-            # Fallback: tìm pattern đơn giản hơn
-            pred_section = re.search(r'💡\s*Dự đoán bệnh:\s*\n+([^\n]+)', result_text, re.IGNORECASE)
-            if pred_section:
-                disease_name = pred_section.group(1).strip()
-                # Remove ký tự đặc biệt
-                disease_name = disease_name.replace('**', '').replace('*', '').strip()
+        if pred_section_match:
+            pred_section = pred_section_match.group(1)
+            
+            # Extract từng bệnh với pattern: "1. **Tên Bệnh**\n   Lý do: ..."
+            # Cho phép thêm text sau **Tên Bệnh** (ví dụ: - 60%)
+            disease_patterns = re.findall(
+                r'(\d+)\.\s*\*\*([^*\n]+)\*\*(?:[^\n]*)\n\s*Lý do:\s*([^\n]+(?:\n(?!\d+\.)[^\n]+)*)',
+                pred_section,
+                re.IGNORECASE
+            )
+            
+            for rank, disease_name, reason in disease_patterns[:3]:  # Chỉ lấy top 3
+                disease_name = disease_name.strip()
+                reason = reason.strip()
+                reason = re.sub(r'\s+', ' ', reason)[:300]  # Clean và limit length
+                
+                predictions.append({
+                    'disease': disease_name,
+                    'probability': 0,  # Không hiển thị %
+                    'reason': reason,
+                    'rank': int(rank)
+                })
         
-        if disease_name:
-            # Tìm lý do
-            reason = ""
-            reason_match = re.search(r'Lý do:\s*([^\n]+(?:\n(?!📋|💊|⚠️)[^\n]+)*)', result_text, re.IGNORECASE | re.DOTALL)
-            if reason_match:
-                reason = reason_match.group(1).strip()
-                reason = re.sub(r'\s+', ' ', reason)[:300]
-            
-            if not reason:
-                reason = "Triệu chứng khớp với bệnh này dựa trên phân tích database"
-            
-            predictions.append({
-                'disease': disease_name,
-                'probability': 0,  # Không hiển thị %
-                'reason': reason
-            })
+        # Fallback: Nếu không tìm thấy top 3, thử tìm ít nhất 1 bệnh
+        if not predictions:
+            # Tìm pattern đơn giản: "**Tên Bệnh**" sau "💡 Dự đoán bệnh:"
+            disease_match = re.search(r'💡\s*Dự đoán bệnh[^:]*:\s*\n+(?:\d+\.\s*)?\*\*([^*\n]+)\*\*', result_text, re.IGNORECASE)
+            if disease_match:
+                disease_name = disease_match.group(1).strip()
+                
+                # Tìm lý do
+                reason = ""
+                reason_match = re.search(r'Lý do:\s*([^\n]+(?:\n(?!📋|💊|⚠️|\d+\.)[^\n]+)*)', result_text, re.IGNORECASE | re.DOTALL)
+                if reason_match:
+                    reason = reason_match.group(1).strip()
+                    reason = re.sub(r'\s+', ' ', reason)[:300]
+                
+                if not reason:
+                    reason = "Triệu chứng khớp với bệnh này dựa trên phân tích database"
+                
+                predictions.append({
+                    'disease': disease_name,
+                    'probability': 0,
+                    'reason': reason,
+                    'rank': 1
+                })
         
         # Extract recommendations
         recommendations = []

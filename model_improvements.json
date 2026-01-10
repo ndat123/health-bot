@@ -1,0 +1,76 @@
+{
+  "medical_synonyms": {
+    "đau": [
+      "nhức",
+      "buốt",
+      "đau đớn",
+      "đau nhức"
+    ],
+    "sốt": [
+      "nóng",
+      "sốt cao",
+      "sốt nhẹ",
+      "ớn lạnh"
+    ],
+    "ho": [
+      "ho khan",
+      "ho có đờm",
+      "ho ra máu",
+      "ho nhiều"
+    ],
+    "buồn nôn": [
+      "nôn",
+      "ói",
+      "nôn mửa",
+      "muốn nôn"
+    ],
+    "chóng mặt": [
+      "hoa mắt",
+      "choáng váng",
+      "ngất",
+      "mất thăng bằng"
+    ],
+    "mệt": [
+      "mệt mỏi",
+      "kiệt sức",
+      "yếu",
+      "mỏi"
+    ],
+    "khó thở": [
+      "thở gấp",
+      "thở nhanh",
+      "ngạt thở",
+      "khó thở"
+    ],
+    "đau đầu": [
+      "nhức đầu",
+      "đau nửa đầu",
+      "đau đầu dữ dội"
+    ],
+    "tiêu chảy": [
+      "đi ngoài",
+      "phân lỏng",
+      "ỉa chảy"
+    ],
+    "táo bón": [
+      "khó đi ngoài",
+      "đại tiện khó",
+      "bí đại tiện"
+    ]
+  },
+  "important_keywords": {
+    "ho ra máu": 5.0,
+    "xuất huyết": 5.0,
+    "sụt cân": 4.0,
+    "khó thở": 4.0,
+    "đau ngực": 4.0,
+    "co giật": 5.0,
+    "tê liệt": 5.0,
+    "vàng da": 4.5,
+    "phù": 4.0,
+    "sốt cao": 3.5,
+    "đau dữ dội": 4.0
+  },
+  "version": "2.0",
+  "timestamp": "2026-01-10T03:28:33.968758"
+}
